@@ -466,7 +466,9 @@ class MailWeaveApp:
         nav.pack(fill=tk.BOTH, expand=True)
 
         from brand_assets import load_ui_icon
-        self._nav_icons = {}
+        # Keep a reference to every nav PhotoImage. A dict keyed by icon_name
+        # would let two buttons sharing the same icon GC the first one's image.
+        self._nav_icons: list = []
 
         def _section(text):
             tk.Label(nav, text=text, bg=theme['sidebar'], fg=theme['fgdim'],
@@ -476,7 +478,7 @@ class MailWeaveApp:
         def _nav_btn(text, icon_name, cmd, accent=False):
             img = load_ui_icon(icon_name, (22, 22))
             if img:
-                self._nav_icons[icon_name] = img
+                self._nav_icons.append(img)
             base_bg = theme['accent'] if accent else theme['sidebar']
             base_fg = '#FFFFFF' if accent else theme['fg']
             hover_bg = theme['accent2'] if accent else theme['surface']
