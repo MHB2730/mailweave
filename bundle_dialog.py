@@ -50,8 +50,14 @@ class BundleDialog:
         self._win.transient(parent)
         self._win.grab_set()
         self._win.configure(bg=theme['bg'])
-        self._win.geometry('860x600')
-        self._win.minsize(700, 500)
+        self._win.geometry('1100x780')
+        self._win.minsize(820, 620)
+        # Open maximised so the Build PDF / Close buttons are always visible
+        # regardless of the user's display scaling.
+        try:
+            self._win.state('zoomed')
+        except tk.TclError:
+            pass
 
         self._busy = False
         self._build_ui()

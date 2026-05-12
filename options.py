@@ -39,6 +39,12 @@ class OptionsDialog:
         self._build_styles()
         self._build()
         self._win.protocol('WM_DELETE_WINDOW', self._cancel)
+        # Ensure the dialog comes to the front when launched from the sidebar
+        # — otherwise it can stack behind the main window on some setups.
+        self._win.update_idletasks()
+        self._win.deiconify()
+        self._win.lift()
+        self._win.focus_force()
         parent.wait_window(self._win)
 
     # ── Setup ──────────────────────────────────────────────────────────────────

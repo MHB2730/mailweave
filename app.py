@@ -462,40 +462,56 @@ class MailWeaveApp:
                  font=('Segoe UI Semibold', 14, 'bold')).pack(pady=(10, 0))
 
         # Navigation / Primary Actions
-        nav = tk.Frame(side, bg=theme['sidebar'], padx=16)
+        nav = tk.Frame(side, bg=theme['sidebar'], padx=12)
         nav.pack(fill=tk.BOTH, expand=True)
-        
+
         from brand_assets import load_ui_icon
         self._nav_icons = {}
-        
+
+        def _section(text):
+            tk.Label(nav, text=text, bg=theme['sidebar'], fg=theme['fgdim'],
+                     font=('Segoe UI', 8, 'bold')).pack(anchor='w',
+                                                        padx=8, pady=(18, 6))
+
         def _nav_btn(text, icon_name, cmd, accent=False):
-            img = load_ui_icon(icon_name, (20, 20))
+            img = load_ui_icon(icon_name, (22, 22))
             if img:
                 self._nav_icons[icon_name] = img
-                btn = tk.Button(nav, text=f"  {text}", image=img, compound=tk.LEFT, command=cmd,
-                                bg=theme['accent'] if accent else theme['sidebar'],
-                                fg='#FFFFFF' if accent else theme['fgsub'],
-                                activebackground=theme['accent2'] if accent else theme['surface'],
-                                activeforeground='#FFFFFF',
-                                font=('Segoe UI Semibold', 10),
-                                relief='flat', borderwidth=0, anchor='w', padx=15, pady=10, cursor='hand2')
-            else:
-                btn = tk.Button(nav, text=f"  {text}", command=cmd,
-                                bg=theme['accent'] if accent else theme['sidebar'],
-                                fg='#FFFFFF' if accent else theme['fgsub'],
-                                activebackground=theme['accent2'] if accent else theme['surface'],
-                                activeforeground='#FFFFFF',
-                                font=('Segoe UI Semibold', 10),
-                                relief='flat', borderwidth=0, anchor='w', padx=15, pady=10, cursor='hand2')
+            base_bg = theme['accent'] if accent else theme['sidebar']
+            base_fg = '#FFFFFF' if accent else theme['fg']
+            hover_bg = theme['accent2'] if accent else theme['surface']
+            kwargs = dict(
+                text=f"   {text}",
+                command=cmd,
+                bg=base_bg,
+                fg=base_fg,
+                activebackground=hover_bg,
+                activeforeground='#FFFFFF' if accent else theme['fg'],
+                font=('Segoe UI Semibold', 10),
+                relief='flat', borderwidth=0, anchor='w',
+                padx=12, pady=9, cursor='hand2',
+            )
+            if img is not None:
+                kwargs.update(image=img, compound=tk.LEFT)
+            btn = tk.Button(nav, **kwargs)
             btn.pack(fill=tk.X, pady=2)
+
+            # Real hover effect — tk doesn't do it by default.
+            def _enter(_e, b=btn, bg=hover_bg):
+                if str(b['state']) != 'disabled':
+                    b.configure(bg=bg)
+            def _leave(_e, b=btn, bg=base_bg):
+                if str(b['state']) != 'disabled':
+                    b.configure(bg=bg)
+            btn.bind('<Enter>', _enter)
+            btn.bind('<Leave>', _leave)
             return btn
 
-        tk.Label(nav, text='IMPORT SOURCE', bg=theme['sidebar'], fg=theme['fgdim'], 
-                 font=('Segoe UI Bold', 8)).pack(anchor='w', pady=(20, 10))
-        
-        _nav_btn('Open Files', 'inbox', self._browse_files)
-        _nav_btn('Open Folder', 'archive', self._browse_folder)
-        self.btn_import_outlook = _nav_btn('Import Outlook', 'send', self._import_outlook_selection)
+        _section('EMAILS')
+        _nav_btn('Open Files', 'files', self._browse_files)
+        _nav_btn('Open Folder', 'folder', self._browse_folder)
+        self.btn_import_outlook = _nav_btn('Import from Outlook', 'outlook',
+                                           self._import_outlook_selection)
         if not HAS_OUTLOOK_IMPORT:
             # Outlook integration was not detected at startup; disable the
             # button rather than silently failing on click.
@@ -507,23 +523,20 @@ class MailWeaveApp:
                 )
             except Exception:
                 pass
-        
-        tk.Label(nav, text='ORGANISE', bg=theme['sidebar'], fg=theme['fgdim'], 
-                 font=('Segoe UI Bold', 8)).pack(anchor='w', pady=(20, 10))
-        
-        self.btn_view_emails = _nav_btn('Email Bundle', 'compose', lambda: self._set_view('emails'), accent=True)
-        self.btn_view_annexures = _nav_btn('Annexure List', 'schedule', lambda: self._set_view('annexures'))
-        
-        tk.Label(nav, text='SYSTEM', bg=theme['sidebar'], fg=theme['fgdim'], 
-                 font=('Segoe UI Bold', 8)).pack(anchor='w', pady=(30, 10))
-        
-        _nav_btn('Settings', 'settings', self._open_options)
-        _nav_btn('Diagnostics', 'lock', self._show_diagnostics)
-        _nav_btn('Toggle Theme', 'settings', self._toggle_theme)
 
-        tk.Label(nav, text='BUNDLE', bg=theme['sidebar'], fg=theme['fgdim'],
-                 font=('Segoe UI Bold', 8)).pack(anchor='w', pady=(20, 10))
-        _nav_btn('Indexed Bundle', 'archive', self._open_bundle_dialog)
+        _section('ORGANISE')
+        self.btn_view_emails = _nav_btn('Email View', 'files',
+                                        lambda: self._set_view('emails'),
+                                        accent=True)
+        self.btn_view_annexures = _nav_btn('Annexures', 'annexure',
+                                           lambda: self._set_view('annexures'))
+
+        _section('BUNDLE')
+        _nav_btn('Indexed Bundle', 'bundle', self._open_bundle_dialog)
+
+        _section('SYSTEM')
+        _nav_btn('Settings', 'settings', self._open_options)
+        _nav_btn('Diagnostics', 'info', self._show_diagnostics)
 
         # Stats Card in Sidebar
         stats_f = tk.Frame(side, bg=theme['surface'], padx=20, pady=20)
@@ -1206,21 +1219,36 @@ class MailWeaveApp:
             self._load_files(paths)
 
     def _browse_folder(self):
-        folder = filedialog.askdirectory(title='Select folder containing email files')
+        folder = filedialog.askdirectory(
+            title='Select a folder of .msg / .eml emails',
+            parent=self.root,
+        )
         if not folder:
             return
-        found = sorted(
-            str(path)
-            for path in Path(folder).rglob('*')
-            if path.is_file() and path.suffix.lower() in {'.msg', '.eml'}
-        )
+        try:
+            found = sorted(
+                str(path)
+                for path in Path(folder).rglob('*')
+                if path.is_file() and path.suffix.lower() in {'.msg', '.eml'}
+            )
+        except Exception as exc:
+            LOGGER.exception('open-folder-scan-failed folder=%s', folder)
+            messagebox.showerror(
+                'Could not read folder',
+                f'Failed to scan that folder:\n\n{exc}',
+                parent=self.root,
+            )
+            return
         if found:
             self._push_recent([folder])
             self._load_files(found)
         else:
             messagebox.showinfo(
                 'No emails found',
-                'No .msg or .eml files were found in that folder or its subfolders.',
+                'No .msg or .eml files were found in that folder or its '
+                'subfolders.\n\nTo bundle PDFs or Word documents, use '
+                'Bundle → Indexed Bundle from the sidebar instead.',
+                parent=self.root,
             )
 
     def _import_outlook_selection(self, from_drop: bool = False):
@@ -2258,9 +2286,16 @@ class MailWeaveApp:
         self._run_export('Word document', path, build_docx, emails)
 
     def _open_options(self):
-        from options import OptionsDialog
-
-        OptionsDialog(self.root, self.settings, on_apply=self._apply_settings, T=self.T)
+        try:
+            from options import OptionsDialog
+            OptionsDialog(self.root, self.settings,
+                          on_apply=self._apply_settings, T=self.T)
+        except Exception as exc:
+            LOGGER.exception('open-options-failed')
+            messagebox.showerror(
+                'Could not open Settings',
+                f'The Settings dialog failed to open:\n\n{exc}',
+            )
 
     def _open_bundle_dialog(self):
         try:

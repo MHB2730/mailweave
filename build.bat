@@ -37,6 +37,13 @@ if errorlevel 1 (
     echo  ERROR: Version sync failed.
     goto :fail
 )
+
+:: ── Step 2c : Regenerate UI icons ────────────────────────────────────────────
+echo        Regenerating UI icons...
+python generate_ui_icons.py
+if errorlevel 1 (
+    echo  WARN: Icon regeneration failed; using existing icon_*.png files.
+)
 echo.
 
 :: ── Step 3 : Build with PyInstaller ──────────────────────────────────────────

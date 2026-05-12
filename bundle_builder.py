@@ -305,8 +305,6 @@ def _build_cover_and_index_pdf(options: BundleOptions,
 
     title_sty = ParagraphStyle('B_T', fontName='Helvetica-Bold', fontSize=22,
                                textColor=colors.HexColor('#1A2840'), spaceAfter=4)
-    meta_sty = ParagraphStyle('B_M', fontName='Helvetica', fontSize=9,
-                              textColor=colors.HexColor('#6B7280'), spaceAfter=18)
     idx_title_sty = ParagraphStyle('B_IT', fontName='Helvetica-Bold', fontSize=16,
                                    textColor=colors.HexColor('#1A2840'), spaceAfter=10)
     row_sty = ParagraphStyle('B_R', fontName='Helvetica', fontSize=10,
@@ -317,28 +315,31 @@ def _build_cover_and_index_pdf(options: BundleOptions,
     story = []
     if options.include_cover:
         story.append(Paragraph(options.cover_title, title_sty))
-        story.append(Paragraph(
-            f'Compiled by {options.cover_author} &nbsp;&bull;&nbsp; '
-            f'{len(entries)} annexure{"s" if len(entries) != 1 else ""}',
-            meta_sty,
-        ))
-        story.append(Spacer(1, 8))
+        story.append(Spacer(1, 12))
 
     story.append(Paragraph('Index of Annexures', idx_title_sty))
 
     rows = [[
         Paragraph('<b>Annexure</b>', row_sty),
         Paragraph('<b>Description</b>', row_sty),
-        Paragraph('<b>Pages</b>', row_sty),
+        Paragraph('<b>Page</b>', row_sty),
     ]]
     for entry in entries:
+        if entry.start_page and entry.page_count:
+            if entry.page_count > 1:
+                page_cell = (f'{entry.start_page}'
+                             f'<font color="#9CA3AF"> – {entry.start_page + entry.page_count - 1}</font>')
+            else:
+                page_cell = str(entry.start_page)
+        else:
+            page_cell = '—'
         rows.append([
             Paragraph(f'<b>{entry.label}</b>', link_sty),
             Paragraph(_escape(entry.title), row_sty),
-            Paragraph(str(entry.page_count or '—'), row_sty),
+            Paragraph(page_cell, row_sty),
         ])
 
-    tbl = Table(rows, colWidths=[2.4 * cm, None, 1.8 * cm])
+    tbl = Table(rows, colWidths=[2.4 * cm, None, 2.4 * cm])
     tbl.setStyle(TableStyle([
         ('VALIGN', (0, 0), (-1, -1), 'TOP'),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
@@ -440,34 +441,42 @@ def build_bundle(entries: list[BundleEntry],
                 _LOGGER.warning('bundle-entry-failed label=%s error=%s', entry.label, exc)
                 converted.append((entry, None, 0))
 
-        # Build the cover + index now that we know page counts.
+        # Compute each entry's start page now so the index can show it.
+        # Cover + index pages stay unnumbered; bundle page 1 is the first
+        # page of the first annexure that has content.
+        running = 1
+        for entry, pdf_path, _ in converted:
+            if pdf_path is None or entry.page_count == 0:
+                entry.start_page = 0
+                continue
+            entry.start_page = running
+            running += entry.page_count
+        total_annexure_pages = running - 1
+
+        # Build the cover + index now that we know start pages and counts.
         cover_index_pdf = _build_cover_and_index_pdf(options, entries, page_size, workdir)
 
         writer = PdfWriter()
 
-        # Append cover/index pages first.
+        # Append cover/index pages first — these stay unnumbered.
         for page in PdfReader(str(cover_index_pdf)).pages:
             writer.add_page(page)
-        cover_pages = len(writer.pages)
 
-        # Append each annexure, stamped.
-        bundle_page = cover_pages + 1
+        # Append each annexure, stamped with bundle pages starting at 1.
         for idx, (entry, pdf_path, _count) in enumerate(converted):
             if progress_cb:
                 progress_cb(len(entries) + idx, len(entries) * 2,
                             f'Stamping {entry.label}: {Path(entry.source_path).name}')
             if pdf_path is None or entry.page_count == 0:
                 continue
-            entry.start_page = bundle_page
             try:
                 reader = PdfReader(str(pdf_path))
-                added = _stamp_pdf_pages(reader, writer, entry, options, bundle_page, page_size)
-                bundle_page += added
+                _stamp_pdf_pages(reader, writer, entry, options, entry.start_page, page_size)
             except Exception as exc:
                 entry.error = f'Failed to merge: {exc}'
                 _LOGGER.exception('bundle-merge-failed label=%s', entry.label)
 
-        options.total_pages = bundle_page - 1
+        options.total_pages = total_annexure_pages
         options.entries = entries
 
         # Set basic metadata.
