@@ -2419,8 +2419,15 @@ class MailWeaveApp:
         th = top.winfo_height()
         top.geometry(f'+{rx + rw - tw - 28}+{ry + rh - th - 56}')
 
-        top.bind('<Button-1>', lambda _e: top.destroy())
-        top.after(duration_ms, lambda: top.winfo_exists() and top.destroy())
+        def _dismiss(*_args):
+            try:
+                if top.winfo_exists():
+                    top.destroy()
+            except tk.TclError:
+                pass
+
+        top.bind('<Button-1>', _dismiss)
+        top.after(duration_ms, _dismiss)
 
     def _show_loading_ui(self, visible: bool):
         if visible:

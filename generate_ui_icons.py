@@ -37,13 +37,13 @@ def _rounded_rect(draw, box, radius, outline=ACCENT, width=LINE, fill=None):
 def files_icon():
     """Two stacked document sheets — for 'Open Files'."""
     img, d = _new_canvas()
-    # Back doc
-    _rounded_rect(d, (16, 12, 70, 76), radius=8, fill=(255, 255, 255, 0))
-    # Front doc, slightly offset
-    _rounded_rect(d, (28, 24, 84, 88), radius=8, fill=ACCENT_FILL)
-    # Lines on the front doc
-    for y in (44, 58, 72):
-        d.line((40, y, 72, y), fill=ACCENT, width=LINE - 2)
+    # Back doc — solid lime so it reads at 22px
+    d.rounded_rectangle((14, 10, 66, 74), radius=8, fill=ACCENT)
+    # Front doc — offset, also solid; the gap between the two reads as a stack
+    d.rounded_rectangle((26, 24, 84, 88), radius=8, fill=ACCENT)
+    # White index lines on the front doc
+    for y in (46, 60, 74):
+        d.line((36, y, 74, y), fill=(255, 255, 255, 255), width=LINE - 1)
     _save(img, 'files')
 
 
